@@ -1,0 +1,83 @@
+---
+title: "Tinkering with assortative mating"
+output: 
+  html_document:
+    code_folding: hide
+---
+
+
+```{r}
+
+#
+# As a first step, we choose and establish certain constants
+meanPop   <- 85                # Average trait value
+sdPop     <- 15                # Standard deviation of trait in the population
+h         <- sqrt(0.5)         # h^2 is heritability -- narrow sense
+nPop      <- 10000000          # number of people in population
+threshold <- 115               # threshold used for trait -- we only consider above this
+nGenes    <- 100               # number of genes (each is on/off)
+p         <- 0.5               # The probability of having any given gene
+gene_mean <- as.double(nGenes) * p
+gene_sd   <- sqrt(as.double(nGenes) * p * (1-p))
+genome1   <- array(as.integer(runif(nPop * nGenes) > p), dim=c(nPop, nGenes))
+#
+#
+#  With the above established, we generate our first generation
+x1        <- h*sdPop*(rowSums(genome1)-gene_mean)/gene_sd  # heritable contribution
+y1        <- rnorm(nPop, mean=0, sd=sqrt(1-h^2)*sdPop)     # noise
+z1        <- meanPop + x1 + y1                             # measured trait
+#
+#
+# Next we select a sub population with measured trait values above the threshold
+meetThreshold <- z1 > threshold
+Genome1       <- genome1[meetThreshold, ]
+X1            <- x1[meetThreshold]
+Y1            <- y1[meetThreshold]
+Z1            <- z1[meetThreshold]
+nSubPop <- length(Z1)
+#
+#
+# Assume the selected sub-population only chooses mates from the sub-population.
+# Generate the next generation from this selected sub-population.
+parent1        <- sample(1:nSubPop, nSubPop, replace=TRUE) 
+parent2        <- sample(1:nSubPop, nSubPop, replace=TRUE) 
+parent1_genome <- Genome1[parent1, ]
+parent2_genome <- Genome1[parent2, ]
+pick    <- as.integer(runif(nSubPop * nGenes) > 0.5)
+genome2 <- pick * parent1_genome + (1-pick) * parent2_genome
+x2      <- h*sdPop*(rowSums(genome2)-gene_mean)/gene_sd
+y2      <- rnorm(nSubPop, mean=0, sd=sqrt(1-h^2)*sdPop)
+z2      <- meanPop + x2 + y2
+#
+#
+# But now suppose we futher select only those that meet the threshold
+meetThreshold <- z2 > threshold
+Genome2       <- genome2[meetThreshold, ]
+X2            <- x2[meetThreshold]
+Y2            <- y2[meetThreshold]
+Z2            <- z2[meetThreshold]
+nSubPop <- length(Z2)
+#
+#
+# And again let them have kids
+parent1        <- sample(1:nSubPop, nSubPop, replace=TRUE) 
+parent2        <- sample(1:nSubPop, nSubPop, replace=TRUE) 
+parent1_genome <- Genome2[parent1, ]
+parent2_genome <- Genome2[parent2, ]
+pick    <- as.integer(runif(nSubPop * nGenes) > 0.5)
+genome3 <- pick * parent1_genome + (1-pick) * parent2_genome
+x3      <- h*sdPop*(rowSums(genome3)-gene_mean)/gene_sd
+y3      <- rnorm(nSubPop, mean=0, sd=sqrt(1-h^2)*sdPop)
+z3      <- meanPop + x3 + y3
+
+# Interesting outputs:
+mean(z3)
+sd(z3)
+hist(z3)
+
+```
+
+
+
+
+
