@@ -5,75 +5,98 @@ output:
     code_folding: hide
 ---
 
+# Version 2 (updated February 22, 2020)
+
+I renamed some variables to make their meaning clearer, and reorganized
+the equations to make them (hopefully) more understandable.
 
 ```{r}
 
 #
 # As a first step, we choose and establish certain constants
-meanPop   <- 85                # Average trait value
+meanPop   <- 100               # Average trait value
 sdPop     <- 15                # Standard deviation of trait in the population
-h         <- sqrt(0.5)         # h^2 is heritability -- narrow sense
-nPop      <- 10000000          # number of people in population
-threshold <- 115               # threshold used for trait -- we only consider above this
+h         <- sqrt(0.5)         # h^2 is heritability 
+nPop      <- 1000000           # number of people in population
+threshold <- 130               # threshold used for trait -- only people above it can procreate
 nGenes    <- 100               # number of genes (each is on/off)
-p         <- 0.5               # The probability of having any given gene
+p         <- 0.5               # The probability of having any given gene being "on"
 gene_mean <- as.double(nGenes) * p
 gene_sd   <- sqrt(as.double(nGenes) * p * (1-p))
-genome1   <- array(as.integer(runif(nPop * nGenes) > p), dim=c(nPop, nGenes))
 #
 #
 #  With the above established, we generate our first generation
-x1        <- h*sdPop*(rowSums(genome1)-gene_mean)/gene_sd  # heritable contribution
-y1        <- rnorm(nPop, mean=0, sd=sqrt(1-h^2)*sdPop)     # noise
-z1        <- meanPop + x1 + y1                             # measured trait
+Genome1   <- array(as.integer(runif(nPop * nGenes) > p), dim=c(nPop, nGenes))
+G1        <- sdPop*(rowSums(Genome1)-gene_mean)/gene_sd  # genetic contribution; normalized to sd of population
+E1        <- rnorm(nPop, mean=0, sd=sdPop)               #   error contribution; normalized to sd of population 
+Z1        <- meanPop + h*G1 + sqrt(1-h^2)*E1             #   measured trait
 #
 #
 # Next we select a sub population with measured trait values above the threshold
-meetThreshold <- z1 > threshold
-Genome1       <- genome1[meetThreshold, ]
-X1            <- x1[meetThreshold]
-Y1            <- y1[meetThreshold]
-Z1            <- z1[meetThreshold]
-nSubPop <- length(Z1)
+meetThreshold          <- Z1 > threshold
+Selected_Genome1       <- Genome1[meetThreshold, ]
+Selected_G1            <- G1[meetThreshold]
+Selected_E1            <- E1[meetThreshold]
+Selected_Z1            <- Z1[meetThreshold]
+nSubPop                <- sum(meetThreshold)
 #
 #
 # Assume the selected sub-population only chooses mates from the sub-population.
-# Generate the next generation from this selected sub-population.
-parent1        <- sample(1:nSubPop, nSubPop, replace=TRUE) 
-parent2        <- sample(1:nSubPop, nSubPop, replace=TRUE) 
-parent1_genome <- Genome1[parent1, ]
-parent2_genome <- Genome1[parent2, ]
-pick    <- as.integer(runif(nSubPop * nGenes) > 0.5)
-genome2 <- pick * parent1_genome + (1-pick) * parent2_genome
-x2      <- h*sdPop*(rowSums(genome2)-gene_mean)/gene_sd
-y2      <- rnorm(nSubPop, mean=0, sd=sqrt(1-h^2)*sdPop)
-z2      <- meanPop + x2 + y2
+# Select the parents and identify them as either the first or second parent.
+Parent1        <- sample(1:nSubPop, nSubPop, replace=TRUE)    # These are the "index" of each person to be a parent
+Parent2        <- sample(1:nSubPop, nSubPop, replace=TRUE) 
+Parent1_Genome <- Selected_Genome1[Parent1, ]                 # The "genome" of each parent.  Needed to construct
+Parent2_Genome <- Selected_Genome1[Parent2, ]                 # genome of the children
+Parent1_G1     <- Selected_G1[Parent1]   # These six terms are not used, but are useful for testing.
+Parent1_E1     <- Selected_E1[Parent1]   # Basically, they are all the data associated to the parent of
+Parent1_Z1     <- Selected_Z1[Parent1]   # next generation.
+Parent2_G1     <- Selected_G1[Parent2]   #
+Parent2_E1     <- Selected_E1[Parent2]   #
+Parent2_Z1     <- Selected_Z1[Parent2]   #
 #
 #
-# But now suppose we futher select only those that meet the threshold
-meetThreshold <- z2 > threshold
-Genome2       <- genome2[meetThreshold, ]
-X2            <- x2[meetThreshold]
-Y2            <- y2[meetThreshold]
-Z2            <- z2[meetThreshold]
-nSubPop <- length(Z2)
+# Generate the next generation.
+gene_pick      <- as.integer(runif(nSubPop * nGenes) > 0.5)
+Genome2        <- gene_pick * Parent1_Genome + (1-gene_pick) * Parent2_Genome
+G2             <- sdPop*(rowSums(Genome2)-gene_mean)/gene_sd  
+E2             <- rnorm(nSubPop, mean=0, sd=sdPop)
+Z2             <- meanPop + h*G2 + sqrt(1-h^2)*E2
 #
 #
-# And again let them have kids
-parent1        <- sample(1:nSubPop, nSubPop, replace=TRUE) 
-parent2        <- sample(1:nSubPop, nSubPop, replace=TRUE) 
-parent1_genome <- Genome2[parent1, ]
-parent2_genome <- Genome2[parent2, ]
-pick    <- as.integer(runif(nSubPop * nGenes) > 0.5)
-genome3 <- pick * parent1_genome + (1-pick) * parent2_genome
-x3      <- h*sdPop*(rowSums(genome3)-gene_mean)/gene_sd
-y3      <- rnorm(nSubPop, mean=0, sd=sqrt(1-h^2)*sdPop)
-z3      <- meanPop + x3 + y3
-
-# Interesting outputs:
-mean(z3)
-sd(z3)
-hist(z3)
+# Now suppose we select only those children (i.e. second generation population) that meet the threshold
+meetThreshold          <- Z2 > threshold
+Selected_Genome2       <- Genome2[meetThreshold, ]
+Selected_G2            <- G2[meetThreshold]
+Selected_E2            <- E2[meetThreshold]
+Selected_Z2            <- Z2[meetThreshold]
+nSubPop                <- sum(meetThreshold)
+#
+#
+# And suppose those selected from the second generation pair up to become parents
+Parent1        <- sample(1:nSubPop, nSubPop, replace=TRUE)    # These are the "index" of each person to be a parent
+Parent2        <- sample(1:nSubPop, nSubPop, replace=TRUE) 
+Parent1_Genome <- Selected_Genome2[Parent1, ]                 # The "genome" of each parent.  Needed to construct
+Parent2_Genome <- Selected_Genome2[Parent2, ]                 # genome of the children
+Parent1_G2     <- Selected_G2[Parent1]   # These six terms are not used, but are useful for testing.
+Parent1_E2     <- Selected_E2[Parent1]   # Basically, they are all the data associated to the parent of
+Parent1_Z2     <- Selected_Z2[Parent1]   # next generation.
+Parent2_G2     <- Selected_G2[Parent2]   #
+Parent2_E2     <- Selected_E2[Parent2]   #
+Parent2_Z2     <- Selected_Z2[Parent2]   #
+#
+#
+# And then they have children
+gene_pick      <- as.integer(runif(nSubPop * nGenes) > 0.5)
+Genome3        <- gene_pick * Parent1_Genome + (1-gene_pick) * Parent2_Genome
+G3             <- sdPop*(rowSums(Genome3)-gene_mean)/gene_sd  
+E3             <- rnorm(nSubPop, mean=0, sd=sdPop)
+Z3             <- meanPop + h*G3 + sqrt(1-h^2)*E3
+#
+#
+# We can then ask about the means of each of these generations
+mean(Z1)
+mean(Z2)
+mean(Z3)
 
 ```
 
